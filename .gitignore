@@ -1,0 +1,5 @@
+# model weights are downloaded at run time from the GitHub release (see models_manifest.json)
+experiments/models/
+*.part
+__pycache__/
+.streamlit/secrets.toml

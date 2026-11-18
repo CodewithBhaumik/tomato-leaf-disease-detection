@@ -1,0 +1,53 @@
+{
+  "note": "One held-out test photograph per class (never used for training or model selection). Chosen as the first test photo of each class, not filtered by model correctness.",
+  "samples": [
+    {
+      "key": "early_blight",
+      "name": "Early Blight",
+      "file": "/test-samples/early_blight.jpg",
+      "photo_id": "IMG20220323102220"
+    },
+    {
+      "key": "healthy",
+      "name": "Healthy",
+      "file": "/test-samples/healthy.jpg",
+      "photo_id": "IMG20220323103951"
+    },
+    {
+      "key": "late_blight",
+      "name": "Late Blight",
+      "file": "/test-samples/late_blight.jpg",
+      "photo_id": "IMG20220323122907"
+    },
+    {
+      "key": "leaf_miner",
+      "name": "Leaf Miner",
+      "file": "/test-samples/leaf_miner.jpg",
+      "photo_id": "IMG20220323094315"
+    },
+    {
+      "key": "magnesium_deficiency",
+      "name": "Magnesium Deficiency",
+      "file": "/test-samples/magnesium_deficiency.jpg",
+      "photo_id": "IMG20220323183121"
+    },
+    {
+      "key": "nitrogen_deficiency",
+      "name": "Nitrogen Deficiency",
+      "file": "/test-samples/nitrogen_deficiency.jpg",
+      "photo_id": "IMG20220324110024"
+    },
+    {
+      "key": "potassium_deficiency",
+      "name": "Potassium Deficiency",
+      "file": "/test-samples/potassium_deficiency.jpg",
+      "photo_id": "IMG20220324115111"
+    },
+    {
+      "key": "spotted_wilt_virus",
+      "name": "Spotted Wilt Virus",
+      "file": "/test-samples/spotted_wilt_virus.jpg",
+      "photo_id": "IMG20220323094227"
+    }
+  ]
+}

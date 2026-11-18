@@ -1,0 +1,24 @@
+# Online demo on Streamlit Community Cloud (Linux). Versions match the environment the models were trained and
+# evaluated in, so the pickled scikit-learn models and the PyTorch checkpoints load exactly as they did offline.
+
+# CPU-only PyTorch: the default PyPI build would also download about 2 GB of CUDA libraries the server cannot use.
+torch @ https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp310-cp310-manylinux_2_28_x86_64.whl ; python_version == "3.10"
+torch @ https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp311-cp311-manylinux_2_28_x86_64.whl ; python_version == "3.11"
+torch @ https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl ; python_version == "3.12"
+torch @ https://download.pytorch.org/whl/cpu/torch-2.7.0%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl ; python_version == "3.13"
+torchvision @ https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp310-cp310-manylinux_2_28_x86_64.whl ; python_version == "3.10"
+torchvision @ https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp311-cp311-manylinux_2_28_x86_64.whl ; python_version == "3.11"
+torchvision @ https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl ; python_version == "3.12"
+torchvision @ https://download.pytorch.org/whl/cpu/torchvision-0.22.0%2Bcpu-cp313-cp313-manylinux_2_28_x86_64.whl ; python_version == "3.13"
+
+streamlit==1.65.0
+altair==6.2.2
+numpy==2.2.6
+pandas==2.3.3
+pillow==12.3.0
+scikit-learn==1.7.2
+scikit-image==0.25.2
+scipy==1.15.3
+joblib==1.6.0
+opencv-python-headless==5.1.0.95
+matplotlib==3.10.9
