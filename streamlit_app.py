@@ -50,22 +50,33 @@ CITATION = ("Tomato-Village dataset (Gehlot, Saxena & Gandhi, *Multimedia System
             "[doi:10.1007/s00530-023-01158-y](https://doi.org/10.1007/s00530-023-01158-y))")
 ALLOWED_FORMATS = {"JPEG", "MPO", "PNG", "WEBP", "BMP"}  # same rules as the FastAPI upload endpoint
 Image.MAX_IMAGE_PIXELS = 60_000_000
-_DOWNLOAD_LOCK = threading.Lock()
+DATA_FILES = ("experiments/analytics.json", "experiments/deployment.json", "models_manifest.json",
+              "backend/data/disease_info.json", "assets/test-samples/manifest.json")
 
 
 # ----------------------------------------------------------------------------------------------- data and models
 
+# A git push updates the running app in place: the same Python process reruns the new script, and Streamlit's caches
+# would keep serving what they built from the previous files (the old model list, the old model registry). VERSION
+# fingerprints the data files; the caches are keyed on it, and emptied once whenever it changes.
+VERSION = hashlib.sha256(b"".join((ROOT / f).read_bytes() for f in DATA_FILES)).hexdigest()[:12]
+if getattr(predictor_module, "_demo_version", None) != VERSION:  # the module object outlives script reruns
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    predictor_module._demo_version = VERSION
+
+
 @st.cache_data(show_spinner=False)
-def read_json(rel: str):
+def read_json(rel: str, version: str):
     return json.loads((ROOT / rel).read_text(encoding="utf-8"))
 
 
-ANALYTICS = read_json("experiments/analytics.json")
-DEPLOYMENT = read_json("experiments/deployment.json")
-MANIFEST = read_json("models_manifest.json")
-DISEASE_INFO = read_json("backend/data/disease_info.json")
+ANALYTICS = read_json("experiments/analytics.json", VERSION)
+DEPLOYMENT = read_json("experiments/deployment.json", VERSION)
+MANIFEST = read_json("models_manifest.json", VERSION)
+DISEASE_INFO = read_json("backend/data/disease_info.json", VERSION)
 DISEASES = {c["key"]: c for c in DISEASE_INFO["classes"]}
-SAMPLES = read_json("assets/test-samples/manifest.json")["samples"]
+SAMPLES = read_json("assets/test-samples/manifest.json", VERSION)["samples"]
 ENTRIES = {e["key"]: e for e in DEPLOYMENT["models"]}
 DEFAULT = DEPLOYMENT["default_model"]
 
@@ -89,9 +100,15 @@ def model_store() -> Path:
 
 
 @st.cache_resource(show_spinner=False)
-def registry():
+def registry(version: str):
     model_store()
     return predictor_module.ModelRegistry(device="cpu", lazy=True)  # each model is loaded on first use
+
+
+@st.cache_resource(show_spinner=False)
+def download_lock() -> threading.Lock:
+    """One lock for the whole server process (a module-level lock would be re-created on every script rerun)."""
+    return threading.Lock()
 
 
 def model_files(key: str) -> list[str]:
@@ -131,7 +148,7 @@ def ensure_models(keys) -> None:
     total = sum(MANIFEST["files"][p]["bytes"] for p in todo)
     with st.status(f"Downloading model weights ({total / 1e6:.0f} MB, first use only)…", expanded=True) as status:
         bar, finished = st.progress(0.0), 0
-        with _DOWNLOAD_LOCK:  # one download at a time across visitors; re-check each file inside the lock
+        with download_lock():  # one download at a time across visitors; re-check each file inside the lock
             for rel in todo:
                 if not present(rel):
                     download(rel, lambda n: bar.progress(min(1.0, (finished + n) / total)))
@@ -162,9 +179,9 @@ def canonical(data: bytes) -> np.ndarray:
 
 
 @st.cache_data(show_spinner=False, max_entries=256)
-def analyse(data: bytes, key: str, explain: bool) -> dict:
+def analyse(data: bytes, key: str, explain: bool, version: str) -> dict:
     """The API's prediction for this photo and model (cached: Streamlit reruns the script on every click)."""
-    return registry().predict(canonical(data), key, explain)
+    return registry(version).predict(canonical(data), key, explain)
 
 
 # --------------------------------------------------------------------------------------------------- helpers
@@ -362,7 +379,7 @@ def compare_all(data: bytes, truth) -> None:
     rows = []
     with st.spinner("Running every model on this photo…"):
         for key in ENTRIES:
-            r = analyse(data, key, False)
+            r = analyse(data, key, False, VERSION)
             p = r["prediction"]
             row = {"Model": f"{task(key)} · {short_name(key)}", "Test accuracy": 100 * test_accuracy(key),
                    "Prediction": p["name"], "Confidence": 100 * p["confidence"],
@@ -397,7 +414,7 @@ def show_result(key: str, data, truth, source_label) -> bool:
     try:
         ensure_models([key])
         with st.spinner("Analysing the leaf…"):
-            r = analyse(data, key, True)
+            r = analyse(data, key, True, VERSION)
     except Exception as exc:  # e.g. the model files could not be downloaded
         st.error(f"The model could not run: {exc}", icon=":material/error:")
         return False
