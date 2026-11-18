@@ -12,41 +12,6 @@
       "bytes": 16360417,
       "sha256": "e524acb813f2c2986a33497234b870924271bbb15ce293adff1f5ba15e07ad0e"
     },
-    "ml/logreg__color.joblib": {
-      "asset": "logreg__color.joblib",
-      "bytes": 8168,
-      "sha256": "d143333d01d573f7357bda8e8c55c5021c10f6069a298c383b74d52002378d21"
-    },
-    "ml/svm__color.joblib": {
-      "asset": "svm__color.joblib",
-      "bytes": 979059,
-      "sha256": "edac3e82678df0e11199905714e15d40bde630376a9803c183ed1070383720d8"
-    },
-    "ml/rf__color.joblib": {
-      "asset": "rf__color.joblib",
-      "bytes": 38026486,
-      "sha256": "3a1b1f3a4733c02367a0b38f3b8f6be33ce958fda75c854b2417a4b4e6c376d1"
-    },
-    "dl/clean/custom_cnn.pt": {
-      "asset": "custom_cnn.pt",
-      "bytes": 4727221,
-      "sha256": "3b8de2ce27aee55abca940ae5184e6fc494c3edc0dbd3ede27633c3a846da419"
-    },
-    "dl/clean/mobilenetv2_fe.pt": {
-      "asset": "mobilenetv2_fe.pt",
-      "bytes": 9183883,
-      "sha256": "4addc745969089f78a61d5bf6ffe28f01ee5dc424c70b608f652cc4b1ed77ca3"
-    },
-    "dl/clean/mobilenetv2_ft.pt": {
-      "asset": "mobilenetv2_ft.pt",
-      "bytes": 9183883,
-      "sha256": "9eab21132a0816a507905d05dcfadea111ef368ef427d1da257337c007d41461"
-    },
-    "dl/clean/efficientnet_b0_v2.pt": {
-      "asset": "efficientnet_b0_v2.pt",
-      "bytes": 16374121,
-      "sha256": "c726f21b4b7ab10ca39272f16682d85ce476b9feb2717ce0df293dbae3a6d724"
-    },
     "dl/clean/convnext_tiny_v2.pt": {
       "asset": "convnext_tiny_v2.pt",
       "bytes": 111373999,

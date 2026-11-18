@@ -182,8 +182,33 @@ def sample_file(key: str) -> Path:
     return ROOT / "assets" / "test-samples" / f"{key}.jpg"
 
 
+def short_name(key: str) -> str:
+    """The model's name without its task, e.g. 'ConvNeXt-Tiny + EfficientNet-B0 ensemble' or 'ConvNeXt-Tiny + TTA'."""
+    name = ENTRIES[key]["name"]
+    if name.startswith("Ensemble") and ": " in name:
+        name = name.split(": ", 1)[1] + " ensemble"
+    for tag in (" (5-class)", " (8-class)", " (fine-tuned)"):
+        name = name.replace(tag, "")
+    return name
+
+
+def task(key: str) -> str:
+    return f"{len(ENTRIES[key]['class_keys'])}-class"
+
+
+def test_accuracy(key: str):
+    return (ENTRIES[key].get("test_metrics") or {}).get("accuracy")
+
+
 def model_label(key: str) -> str:
-    return "Focused 5-class model (recommended)" if key == DEFAULT else ENTRIES[key]["name"]
+    return f"{task(key)} · {short_name(key)} — **{pct(test_accuracy(key))}** test accuracy"
+
+
+def model_caption(key: str) -> str:
+    o = ENTRIES[key].get("online") or {}
+    text = (f"Rank {o.get('rank')} of {o.get('candidates')} {o.get('task')} candidates on validation · 95% CI "
+            f"{ci(o.get('test_accuracy_ci'))} on {o.get('test_photos')} test photos")
+    return ("Recommended · " if key == DEFAULT else "") + text
 
 
 def operating_point(key: str):
@@ -276,8 +301,12 @@ def choose_sample(key: str) -> None:
 
 def pick_model() -> str:
     st.subheader("1 · Model", anchor=False)
-    key = st.selectbox("Model", list(ENTRIES), format_func=model_label, key="model", label_visibility="collapsed")
-    entry, scope = ENTRIES[key], ENTRIES[key]["class_keys"]
+    st.caption("The two best 5-class and the two best 8-class models, ranked on validation data, with their accuracy on "
+               "held-out test photos.")
+    keys = list(ENTRIES)
+    key = st.radio("Model", keys, format_func=model_label, captions=[model_caption(k) for k in keys], key="model",
+                   label_visibility="collapsed")
+    scope = ENTRIES[key]["class_keys"]
     if len(scope) < len(CLASSES):
         st.markdown(f"**Recognises {len(scope)} conditions:** " + ", ".join(NAME[k] for k in scope))
         st.caption("Not covered: " + ", ".join(NAME[k] for k in NAME if k not in scope)
@@ -292,10 +321,10 @@ def pick_model() -> str:
                 f"({pct(op['coverage'], 0)}), and **{pct(op['accuracy'])}** of those answers were correct. "
                 "The rest are reported as “Uncertain”.", icon=":material/verified:")
     else:
-        m = entry.get("test_metrics") or {}
-        st.caption(f"Test accuracy {pct(m.get('accuracy'))}, macro-F1 {pct(m.get('f1_macro'))} on "
-                   f"{ANALYTICS['dataset']['clean_split']['test']} unseen photos of all {len(CLASSES)} classes. Below "
-                   f"{pct(DEPLOYMENT['confidence_threshold'], 0)} confidence a result is reported as “Uncertain”.")
+        own = ENTRIES[DEFAULT].get("confidence_threshold")
+        st.caption(f"Below {pct(DEPLOYMENT['confidence_threshold'], 0)} confidence a result is reported as “Uncertain”"
+                   + (f" (the stricter {pct(own, 0)} rule was fixed on validation for the recommended model only)."
+                      if own else "."))
     return key
 
 
@@ -328,44 +357,50 @@ def pick_photo(scope: list):
 
 
 def compare_all(data: bytes, truth) -> None:
+    st.subheader(f"4 · All {len(ENTRIES)} models on this photo", anchor=False)
     ensure_models(list(ENTRIES))
     rows = []
     with st.spinner("Running every model on this photo…"):
         for key in ENTRIES:
             r = analyse(data, key, False)
             p = r["prediction"]
-            row = {"Model": model_label(key), "Classes": len(r["classes"]), "Prediction": p["name"],
-                   "Confidence": 100 * p["confidence"], "Result": "Uncertain" if r["uncertain"] else "Diagnosis"}
+            row = {"Model": f"{task(key)} · {short_name(key)}", "Test accuracy": 100 * test_accuracy(key),
+                   "Prediction": p["name"], "Confidence": 100 * p["confidence"],
+                   "Result": "Uncertain" if r["uncertain"] else "Diagnosis"}
             if truth:
                 row["Correct?"] = "not in scope" if truth not in r["classes"] else ("yes" if p["key"] == truth else "no")
             rows.append(row)
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
-                 column_config={"Confidence": st.column_config.ProgressColumn("Confidence", format="%.1f%%",
+                 column_config={"Test accuracy": percent_column(),
+                                "Confidence": st.column_config.ProgressColumn("Confidence", format="%.1f%%",
                                                                               min_value=0, max_value=100)})
-    st.caption("“Correct?” checks the top class even when the result is “Uncertain”. Each model is scored only on the "
-               "classes it was trained on, so 5-class and 8-class results are not directly comparable. Logistic "
-               "Regression, SVM and Random Forest use handcrafted colour features; the others are convolutional networks.")
+    five = ANALYTICS["five_class"]
+    st.caption("“Correct?” checks the top class even when the result is “Uncertain”. The 5-class models know only "
+               + ", ".join(SHORT[k] for k in five["classes"]) + f". Their test accuracy is measured on the "
+               f"{five['split']['test']} test photos of those classes, the 8-class accuracy on all "
+               f"{ANALYTICS['dataset']['clean_split']['test']}, so the two are not directly comparable.")
 
 
-def show_result(key: str, data, truth, source_label) -> None:
+def show_result(key: str, data, truth, source_label) -> bool:
+    """The chosen model's result; returns whether the visitor asked to compare every model on this photo."""
     st.subheader("3 · Result", anchor=False)
     if data is None:
         with st.container(border=True):
             st.markdown("Choose a test photo, upload a photo or use your camera. The result appears here.")
             st.caption("The very first analysis can take about a minute while the server downloads and loads the model.")
-        return
+        return False
     try:
         rgb = canonical(data)
     except ValueError as exc:
         st.error(str(exc), icon=":material/error:")
-        return
+        return False
     try:
         ensure_models([key])
         with st.spinner("Analysing the leaf…"):
             r = analyse(data, key, True)
     except Exception as exc:  # e.g. the model files could not be downloaded
         st.error(f"The model could not run: {exc}", icon=":material/error:")
-        return
+        return False
 
     pred, threshold = r["prediction"], r["confidence_threshold"]
     confidence, scope = pred["confidence"], r["classes"]
@@ -421,8 +456,7 @@ def show_result(key: str, data, truth, source_label) -> None:
             st.write(info.get("summary", ""))
             disease_details(info)
 
-    if st.toggle(f"Compare all {len(ENTRIES)} models on this photo", key="compare_all"):
-        compare_all(data, truth)
+    return st.toggle(f"Compare all {len(ENTRIES)} models on this photo", key="compare_all")
 
 
 def page_detect() -> None:
@@ -434,7 +468,9 @@ def page_detect() -> None:
         key = pick_model()
         data, truth, source_label = pick_photo(ENTRIES[key]["class_keys"])
     with right:
-        show_result(key, data, truth, source_label)
+        compare = show_result(key, data, truth, source_label)
+    if compare:  # full width: the table has more columns than the result column can show
+        compare_all(data, truth)
     footer()
 
 
@@ -462,6 +498,22 @@ def page_results() -> None:
     cols[3].metric("Best classical ML (8-class)", pct(ml["test"]["accuracy"]), border=True,
                    help="Best classical model by validation macro-F1.")
     cols[3].caption(f"{ml['name']} on colour features")
+
+    st.subheader(f"The {len(ENTRIES)} models in this demo", anchor=False)
+    rows = []
+    for k, e in ENTRIES.items():
+        o, t = e.get("online") or {}, e.get("test_metrics") or {}
+        rows.append({"Task": o.get("task", task(k)), "Model": short_name(k) + (" (recommended)" if k == DEFAULT else ""),
+                     "Validation rank": f"{o.get('rank')} of {o.get('candidates')}",
+                     "Val macro-F1": 100 * o["val_f1_macro"] if o.get("val_f1_macro") is not None else None,
+                     "Test accuracy": 100 * t["accuracy"], "Accuracy 95% CI": ci(o.get("test_accuracy_ci")),
+                     "Test macro-F1": 100 * t["f1_macro"], "Test photos": o.get("test_photos")})
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch",
+                 column_config={"Val macro-F1": percent_column(), "Test accuracy": percent_column(),
+                                "Test macro-F1": percent_column()})
+    st.caption("The two best models of each task, ranked by validation macro-F1 (ties: validation accuracy); the test "
+               "photos were scored once. The two 8-class entries are the same ConvNeXt-Tiny network with and without "
+               "test-time augmentation (TTA). The tables further down list every model the project trained.")
 
     st.subheader("How the deployed model decides", anchor=False)
     sel = five.get("selective") or {}
@@ -609,8 +661,10 @@ on handcrafted features with **deep learning**.
 have very few photos (for example nitrogen and potassium deficiency), and the 5-class model cannot recognise the three
 conditions it was not trained on.
 
-This online version runs the project's own prediction code on Streamlit Community Cloud. The full project, with the
-React + FastAPI web app, the report and every experiment, was submitted for the BTech Machine Learning Lab.
+This online version runs the project's own prediction code on Streamlit Community Cloud. It offers the two best
+5-class and the two best 8-class models (ranked on validation); the Results page reports every model the project
+trained, including the classical baselines. The full project, with the React + FastAPI web app, the report and every
+experiment, was submitted for the BTech Machine Learning Lab.
 """)
     st.link_button("Source code of this demo on GitHub", f"https://github.com/{MANIFEST['repo']}",
                    icon=":material/code:")
